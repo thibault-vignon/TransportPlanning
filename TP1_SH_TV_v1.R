@@ -35,8 +35,9 @@ trips <- trips %>% mutate(mode = str_remove(mode, "Mode::"),
 #ie, choose the mode that had the combined longest length out of all the modes used in the trip
 trips_mainmode <- trips %>%
   group_by(trip_id, mode_agg) %>%
-  summarise(mode_total = sum(length)) %>%
-  filter(mode_total == max(mode_total)) %>%
+  summarise(mode_total_length = sum(length), 
+            mode_total_duration = sum(duration)) %>%
+  filter(mode_total_length == max(mode_total_length)) %>%
   mutate(trip_mainmode = TRUE)
 
 #note: for trip id 11861141, walk and tram both had the same distance. should probably just choose one of these? 
@@ -49,6 +50,15 @@ trips <- trips %>%
   left_join(trips_mainmode, by = c("trip_id", "mode_agg")) %>%
   mutate(trip_mainmode = ifelse(is.na(trip_mainmode), FALSE, trip_mainmode))
 
+#adding variables for total length and duration of trip, so can view these for trip as whole even when focusing in on mainmode
+trips <- trips %>% 
+  group_by(trip_id) %>% 
+  mutate(trip_length = sum(length), 
+         trip_duration = sum(duration))
+
+# join trips to participants 
+trips <- trips %>%
+  left_join(participants, by = c("participant_id"))
 
 
 
@@ -56,14 +66,38 @@ trips <- trips %>%
 
 # only look at main mode legs of the trips
 
-#Note: since trips that have multiple legs using the main mode are all marked as main mode, should probably
-       #aggregate or filter in another way before filtering trip_mainmode = TRUE
+#Note: since trips that have multiple legs using the main mode are all marked as main mode, I selected only distinct trip_ids 
+#since i created variables for mode_total_length and mode_total duration, these will have the combined info for all segments completed with mainmode of transport
 trips <- trips %>%
-  filter(??? == TRUE)
+  filter(trip_mainmode == TRUE) %>%
+  distinct(trip_id, .keep_all = TRUE)
 
-# join the datasets 
-trips <- trips %>%
-  left_join(participants %>% select(???), by = c(???))
+#day of week
+
+#setting levels so appear in logical order on plot
+trips$weekday = factor(trips$weekday, 
+                       levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+
+#plotting number of trips by weekday
+ggplot(trips, 
+       aes(x = weekday)) + 
+  geom_bar() + 
+  labs(y = "# recorded trips") +
+  theme_bw()
+
+#number of trips related to household income
+
+#Income is a factor variable
+#will show boxplot of distribution of total number of trips per person by household income 
+
+ggplot(trips %>% 
+         group_by(participant_id, income) %>%
+         summarise(total_trips = n()),
+       aes(x = factor(income), y = total_trips)) + 
+  geom_boxplot() + 
+  theme_bw()
+
+
 
 # rest: your turn ;-)
 
