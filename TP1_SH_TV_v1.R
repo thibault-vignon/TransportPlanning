@@ -15,8 +15,8 @@ require("sf") # needed for plotting of spatial polygons and calculations with it
 # 1 Import data -----------------------------------------------------------
 
 # use load and adjust the path to where you have saved the data file
-load(paste0("Library/Mobile Documents/com~apple~CloudDocs/Documents/ETH Sem 1/Transport Planning/","data_assignment.RData"))
-
+#load(paste0("Library/Mobile Documents/com~apple~CloudDocs/Documents/ETH Sem 1/Transport Planning/","data_assignment.RData"))
+load(paste0("C:/Users/Thibault Vignon/OneDrive/Desktop/ETHZ/Transport Planning Methods/","data_assignment.RData"))
 
 # 2 Cleaning --------------------------------------------------------------
 
