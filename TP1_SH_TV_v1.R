@@ -7,16 +7,17 @@
 
 # Set up ------------------------------------------------------------------
 
+rm(list=ls()) 
+
 require("lubridate") # great for dealing with dates if needed
 require("tidyverse") # basek of great packages: e.g. dplyr which makes data wrangling more readable and easier
 require("sf") # needed for plotting of spatial polygons and calculations with it
 
-
 # 1 Import data -----------------------------------------------------------
 
 # use load and adjust the path to where you have saved the data file
-load(paste0("Library/Mobile Documents/com~apple~CloudDocs/Documents/ETH Sem 1/Transport Planning/","data_assignment.RData"))
-
+#load(paste0("Library/Mobile Documents/com~apple~CloudDocs/Documents/ETH Sem 1/Transport Planning/","data_assignment.RData"))
+load(paste0("C:/Users/Thibault Vignon/OneDrive/Desktop/ETHZ/Transport Planning Methods/","data_assignment.RData"))
 
 # 2 Cleaning --------------------------------------------------------------
 
@@ -128,8 +129,8 @@ ggplot(trips_aggregated %>%
          group_by(weekday) %>%
          summarise(avg = mean(n)), 
        aes(x = weekday, y = avg)) + 
-  labs(y = "Average trips per person per weekday", 
-       title = "Average trips per person per weekday by day of week") +
+  labs(y = "Average trips per person", 
+       title = "Average trips per person by day of the week") +
   geom_text(aes(label = round(avg, 1)), vjust = -0.5) +
   geom_col() +
   custom_theme
@@ -147,14 +148,15 @@ ggplot(trips_aggregated %>%
 #could plot weekday vs weekend day
 
 ggplot(trips_aggregated %>% 
-         #combine "prefer not to answer" and missing into one category -- is this best?
-         mutate(income = ifelse(is.na(income), 99, income)) %>% 
+         #combine "prefer not to answer" and missing into one category -- is this best? -- I don't think so
+         #mutate(income = ifelse(is.na(income), 99, income)) %>% 
+         drop_na(income) %>%
          group_by(participant_id, income) %>%
          summarise(total_trips = n()),
        aes(x = factor(income), y = total_trips)) + 
   geom_boxplot() +
   scale_x_discrete(breaks = c(1, 2, 3, 4, 5, 99), 
-                     labels = c("<4k", "4k - 8k", "8k - 12k", "12k - 16k", ">16k", "Unknown")) +
+                     labels = c("<4k", "4k - 8k", "8k - 12k", "12k - 16k", ">16k", "Prefer not to say")) +
   labs(x = "Income (CHF)", 
        y = "Total weekly trips", 
        title = "Distribution of number of trips by household income", 
@@ -165,7 +167,29 @@ ggplot(trips_aggregated %>%
 #household size and income
 #will look at per capita income
 
-
+ggplot(trips_aggregated %>% 
+         #combine "prefer not to answer" and missing into one category -- is this best? 
+         #Thibault : I think it's better to get rid of na values entirely
+         #mutate(income = ifelse(is.na(income), 99, income)) %>% 
+         drop_na(income) %>%
+         drop_na(household_size) %>%
+         group_by(participant_id, income, household_size) %>%
+         mutate(income= case_when(income == 1 ~ "<4k", 
+                                  income == 2 ~"4k - 8k", 
+                                  income == 3 ~"8k - 12k", 
+                                  income == 4 ~"12k - 16k",
+                                  income == 5 ~">16k", 
+                                 TRUE ~ "Prefer not to say")) %>%
+         summarise(total_trips = n()),
+       aes(x = factor(household_size), y = total_trips, fill = income)) + 
+  geom_boxplot() +
+  scale_x_discrete(breaks = c(1, 2, 3, 4, 5), 
+                   labels = c("1", "2", "3", "4", "5 or more")) +
+  labs(x = "Household size", 
+       y = "Total weekly trips", 
+       title = "Number of trips by household income and size", 
+       caption = "Source: One week of 2019 MOBIS data") +
+  custom_theme
 
 # rest: your turn ;-)
 
@@ -188,12 +212,12 @@ trips_aggregated %>%
   count() %>%
   mutate(phase= case_when(between(trip_int, 7, 8.9) ~ "Morning", 
                           between(trip_int, 16, 18.4) ~"Evening", 
-                          TRUE ~ "Rest")) %>%
+                          TRUE ~ "Other")) %>%
   ggplot(aes(x = trip_int, y = n, fill = phase)) +
   geom_bar(stat = "identity", position = "dodge") + 
   scale_x_continuous(breaks = seq(0, 24, 1)) +
   theme_bw() +
-  labs(x = "Time of Day")
+  labs(x = "Time of Day", y = "Total recorded trips")
 
 
 
