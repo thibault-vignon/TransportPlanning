@@ -191,14 +191,6 @@ ggplot(trips_aggregated %>%
        caption = "Source: One week of 2019 MOBIS data") +
   custom_theme
 
-# rest: your turn ;-)
-
-
-# 4 socio-demographics ----------------------------------------------------
-
-# your turn ;-)
-
-
 
 #plotting by time of day with peak colored - 
 #note: code from class, should double check and customize
@@ -221,15 +213,93 @@ trips_aggregated %>%
 
 
 
+# 4 socio-demographics ----------------------------------------------------
 
 
+# Age distribution of participants
+
+participants %>%
+  select(participant_id, age) %>%
+  drop_na(age) %>%
+  group_by(age) %>%
+  count() %>%
+  ggplot(aes(x = age, y = n)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_x_continuous(breaks = seq(18, 68, 5)) +
+  labs(x = "Age", y = "Number of participants")
 
 
+#... separated by sex
+
+participants %>%
+  select(participant_id, age, sex) %>%
+  drop_na(age) %>%
+  drop_na(sex) %>%
+  group_by(age,sex) %>%
+  count() %>%
+  mutate(sex= case_when(sex == 1 ~ "Male", 
+                          TRUE ~ "Female")) %>%
+  mutate(age = case_when(between(age, 18, 25) ~ "18-25", 
+                            between(age, 26, 40) ~ "26-40",
+                            between(age, 41, 55) ~ "41-55",
+                            TRUE ~ "56+")) %>%
+  ggplot(aes(x = age, y = n, fill = sex)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Age", y = "Number of participants")
 
 
+# Education level distribution
+
+participants %>%
+  drop_na(education) %>%
+  group_by(education) %>%
+  count() %>%
+  mutate(education= case_when(education == 1 ~ "Only mandatory education", 
+                              education == 2 ~ "Secondary education",
+                              education == 3 ~ "Higher education",
+                        TRUE ~ "Other")) %>%
+  ggplot(aes(x = education, y = n)) +
+  scale_x_discrete(limits = c("Only mandatory education", "Secondary education", "Higher education")) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Education level", y = "Number of participants")
 
 
+# .. by employment status
+
+participants %>%
+  drop_na(education) %>%
+  drop_na(employment_1) %>%
+  group_by(education, employment_1) %>%
+  count() %>%
+  mutate(education= case_when(education == 1 ~ "Only mandatory education", 
+                              education == 2 ~ "Secondary education",
+                              education == 3 ~ "Higher education",
+                              TRUE ~ "Other")) %>%
+  mutate(employment_1= case_when(employment_1 == 10 ~ "Employed", 
+                              employment_1 == 20 ~ "Self-employed",
+                              employment_1 == 30 ~ "Apprentice",
+                              employment_1 == 40 ~ "Unemployed",
+                              employment_1 == 50 ~ "Student",
+                              employment_1 == 70 ~ "Retired",
+                              TRUE ~ "Other")) %>%
+  ggplot(aes(x = employment_1, y = n, fill = education)) +
+  scale_x_discrete(limits = c("Apprentice", "Student", "Employed", "Self-employed", "Unemployed", "Retired", "Other")) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Employment status", y = "Number of participants")
 
 
+# Income distribution
 
-
+participants %>%
+  drop_na(income) %>%
+  group_by(income) %>%
+  count() %>%
+  mutate(income= case_when(income == 1 ~ "<4k", 
+                           income == 2 ~"4k - 8k", 
+                           income == 3 ~"8k - 12k", 
+                           income == 4 ~"12k - 16k",
+                           income == 5 ~">16k", 
+                           TRUE ~ "Prefer not to say")) %>%
+  ggplot(aes(x = income, y = n)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Household income", y = "Number of participants")
