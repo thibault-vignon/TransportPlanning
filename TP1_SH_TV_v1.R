@@ -206,6 +206,27 @@ ggplot(trips_aggregated %>%
   custom_theme
 
 
+ggplot(trips_aggregated %>% 
+         #combine "prefer not to answer" and missing into one category -- is this best? 
+         #Thibault : I think it's better to get rid of na values entirely
+         #mutate(income = ifelse(is.na(income), 99, income)) %>% 
+         drop_na(age) %>%
+         group_by(participant_id, age, income) %>%
+         summarise(total_trips = n(), 
+                   avg_daily_trips = total_trips/n_distinct(date)) %>%
+         filter(total_trips > 10),
+       aes(x = age, y = avg_daily_trips)) + 
+  geom_point() +
+  scale_y_continuous(limits = c(0, 10))+
+#  scale_fill_brewer(name = "Monthly household \nincome (CHF)")+
+  labs(x = "Age", 
+       y = "Average daily trips", 
+       title = "Average daily trips by age", 
+       subtitle = "Canton Zurich, 2019",
+       caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData' \n Removed those with missing age and less than 10 total trips.") +
+  custom_theme
+
+
 
 
 #plotting by time of day with peak colored - 
@@ -324,6 +345,55 @@ ggplot(trips_aggregated %>%
        y = "Percent of trips", 
        caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'\nn = 18999 for weekday, n = 5381 for weekend.") +
   custom_theme
+
+
+#### mode choice by income
+
+labels <- trips_aggregated %>%
+  filter(!is.na(income)) %>%
+  mutate(daytype = ifelse(weekday %in% c("Sat", "Sun"), "Weekend", "Weekday"), 
+                          income = case_when(income == 1 ~ "<4k", 
+                                             income == 2 ~"4k - 8k", 
+                                             income == 3 ~"8k - 12k", 
+                                             income == 4 ~"12k - 16k",
+                                             income == 5 ~">16k", 
+                                             TRUE ~ "Prefer not to say"), 
+         mode_agg = factor(mode_agg, levels = c("Walk", "PT", "Car", "Bicycle"))) %>%
+  group_by(daytype, income, mode_agg) %>%
+  summarise(n= n()) %>%
+  group_by(daytype, income) %>% 
+  mutate(total = sum(n), 
+         perc = n/total, 
+         y = cumsum(perc) - 0.5*perc) 
+
+
+
+ggplot(trips_aggregated %>%
+         filter(!is.na(income)) %>%
+         mutate(daytype = ifelse(weekday %in% c("Sat", "Sun"), "Weekend", "Weekday"), 
+                income = case_when(income == 1 ~ "<4k", 
+                                                     income == 2 ~"4k - 8k", 
+                                                     income == 3 ~"8k - 12k", 
+                                                     income == 4 ~"12k - 16k",
+                                                     income == 5 ~">16k", 
+                                                     TRUE ~ "Prefer not to say")),
+       aes(x = factor(income), fill = mode_agg)) + 
+  geom_bar(position = "fill") +
+  facet_grid(cols = vars(daytype)) +
+  geom_text(data = labels, size = 3.5,
+            aes(x = income, y = y, label = percent(perc, accuracy = 1)))+
+  geom_text(data = labels, vjust = -0.5, size = 3.5, 
+            aes(x = income, y = 1, label = total)) +
+  scale_y_continuous(labels = scales::percent)+
+  scale_fill_brewer(palette = "Pastel2", name = "Mode")+
+  
+  labs(title = "Mode type by income bracket, weekday vs weekend", 
+       subtitle = "Canton Zurich, 2019", 
+       x = "Monthly household income (CHF)", 
+       y = "Percent of trips", 
+       caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'\nRploved those with missing income data.") +
+  custom_theme + 
+  theme(axis.text.x = element_text(angle = 20))
 
 
 
@@ -451,6 +521,7 @@ participants %>%
                                  employment_1 == 50 ~ "Student",
                                  employment_1 == 70 ~ "Retired",
                                  TRUE ~ "Other")) %>%
+  mutate(education = factor(education, levels = c("Only mandatory education", "Secondary education", "Higher education") ))%>%
   ggplot(aes(x = employment_1)) +
   scale_x_discrete(limits = c("Apprentice", "Student", "Employed", "Self-employed", "Unemployed", "Retired", "Other")) +
   geom_bar(aes(fill = education), position = "fill") +
@@ -460,7 +531,7 @@ participants %>%
             aes(y = 1, x = employment_1, label = n), 
             vjust = -0.5)+
   labs(x = "Employment status",
-       y = "Number of participants", 
+       y = "Percent of participants", 
        title = "Distribution of employment status and education for MOBIS participants",
        caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'") +
   custom_theme+
