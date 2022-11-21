@@ -230,7 +230,8 @@ participants_trips <- participants_trips %>% mutate(
     income == 1 ~ "Low", 
     income == 99 ~ "Undisclosed", 
     TRUE ~ "High"
-  )
+  ), 
+  income = factor(income, levels = c("Low", "High", "Undisclosed"))
 )
 
 ### Step 4:
@@ -317,7 +318,7 @@ acf(resid(model))
 #linear assumptions are actually held quite well, so linear model may be the most appropriate here
 #other models include... ??
 
-stargazer(model, single.row = TRUE, report = c("vcp*") )
+stargazer(model, single.row = TRUE, report = c("vcp*"), title = "Regression summary")
 
 
 ## 1. Calculate trips per week per person and merge it to participants (by now you should know how that works)
@@ -340,5 +341,122 @@ test <- trips_aggregated %>%
 
 ggplot(test, aes(x = n_trips)) + 
   geom_histogram()
+
+
+
+
+
+###### Part 3: Mode choice modeling
+
+library(apollo)
+
+#Since our alternatives data is based on mainmode computed by the taking the longest trip leg, we will redefine mainmode
+
+load(paste0("data_assignment.RData"))
+
+trips <- trips %>% mutate(mode = str_remove(mode, "Mode::"), 
+                          mode_agg = str_remove(mode_agg, "Mode::"), 
+                          length = floor(length), 
+                          duration = floor(duration))
+
+
+#trips_mainmode df now only includes trip legs with the mainmode, and defines mainmode as the longest leg in the trip
+trips_mainmode <- trips %>% 
+  group_by(trip_id) %>%
+  slice(which.max(length))
+  
+
+#load in alternative mode choice data
+load("data_assignment_modechoice.RData")
+
+trips_total <- trips_mainmode %>% right_join(modechoicetrips, by = c("trip_id", "participant_id")) %>%
+  arrange(participant_id)
+
+
+
+### Apollo modeling
+
+apollo_initialise()
+
+database = trips_total
+
+
+#set up core controls
+apollo_control = list(
+  modelName ="mode_choice",
+  indivID ="participant_id",
+  outputDirectory = "output",
+  #weights = "weight_double",
+  nCores = 1
+)
+
+#parameters that we are interested in the effect of
+apollo_beta = c(
+  asc_car = 0, 
+  asc_bike = 0, 
+  asc_pt = 0, 
+  asc_walk = 0,
+  b_tt_car = 0, 
+  b_tt_bike = 0, 
+  b_tt_pt = 0, 
+  b_tt_walk = 0
+)
+
+#fix reference variables - not entirely sure what this is about? 
+apollo_fixed = c("asc_car")
+
+apollo_inputs = apollo_validateInputs()
+
+apollo_probabilities <- function(apollo_beta, apollo_inputs, functionality = "estimate"){
+  
+  #attach inputs and detach after function exit
+  apollo_attach(apollo_beta, apollo_inputs)
+  on.exit(apollo_detach(apollo_beta, apollo_inputs))
+  
+  #create list of probabilities
+  P = list()
+  
+  #list of utilities
+  V = list()
+  
+  V[["car"]] = asc_car + b_tt_car * tt_car
+  V[["bike"]] = asc_bike + b_tt_bike * tt_bike
+  V[["pt"]] = asc_pt + b_tt_pt*tt_pt
+  V[["walk"]] = asc_walk + b_tt_walk*tt_walk
+  
+  
+  mnl_settings = list(
+    
+    #alternatives - assign a number that will be used for the alternative in the model
+    alternatives = c(car=1, pt=2, bike=3, walk=4),
+    #setting vector from which to pull the availability of alternatives
+    avail = list(car=avail_car, pt = avail_pt, bike = avail_bike, walk = avail_walk),
+    #vector that contains actual chosen option - should be from the numbers above
+    choiceVar = choice,
+    utilities = V)
+  
+  #compute probabilities using MNL model
+  P[["model"]] = apollo_mnl(mnl_settings, functionality)
+  
+  #Take product across observation for same individual
+  P = apollo_panelProd(P, apollo_inputs, functionality)
+
+  #Prepare and return outputs of function
+  P = apollo_prepareProb(P, apollo_inputs, functionality)
+  return(P)
+  
+  
+}
+
+
+
+
+model = apollo_estimate(apollo_beta,
+                        apollo_fixed,
+                        apollo_probabilities,
+                        apollo_inputs)
+
+apollo_modelOutput(model)
+
 
 
