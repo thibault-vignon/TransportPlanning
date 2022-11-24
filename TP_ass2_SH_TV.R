@@ -144,7 +144,7 @@ weekly_trips_participant_clean <- weekly_trips_per_participant %>%
 
 #left with 453 people - hopefully enough for analysis
 
-ggplot(weekly_trips_participant_clean, aes(x = n_trips_imputed)) + 
+ggplot(weekly_trips_participant_clean, aes(x = log(n_trips_imputed))) + 
   geom_histogram()
 #data looks relatively normal, not too bad
 
@@ -266,7 +266,7 @@ model <- lm(data = participants_trips,
         log(weekly_trips_imputed) ~ 
           income +
           age+
-          household_size+
+     #     household_size+
           has_pt_pass)
 
 summary(model)
@@ -320,6 +320,7 @@ acf(resid(model))
 
 stargazer(model, single.row = TRUE, report = c("vcp*"), title = "Regression summary")
 
+stargazer(model)
 
 ## 1. Calculate trips per week per person and merge it to participants (by now you should know how that works)
 ## 2. Use pairs() to make a scatterplot matrix in order to examine possible relationships between variables
@@ -350,6 +351,8 @@ ggplot(test, aes(x = n_trips)) +
 
 library(apollo)
 
+rm(list = ls())
+
 #Since our alternatives data is based on mainmode computed by the taking the longest trip leg, we will redefine mainmode
 
 load(paste0("data_assignment.RData"))
@@ -371,6 +374,22 @@ load("data_assignment_modechoice.RData")
 
 trips_total <- trips_mainmode %>% right_join(modechoicetrips, by = c("trip_id", "participant_id")) %>%
   arrange(participant_id)
+trips_total <- trips_total %>%  left_join(participants, 
+            by = c("participant_id" = "participant_id"))
+
+trips_total <- trips_total %>%
+  mutate(lowincome = case_when(income == 1 ~ 1, 
+                               !is.na(income) ~ 0, 
+                               TRUE ~ 0), 
+         female = case_when(sex == 2 ~ 1, 
+                            !is.na(sex) ~ 0, 
+                            TRUE ~ 0))
+
+#trips_total <- trips_total %>%
+#  mutate(cost_pt = case_when(has_pt_pass_regional == 1 ~ 0,
+#                             has_pt_pass_ga == 1 ~ 0, 
+#                             TRUE ~ cost_pt))
+
 
 
 
@@ -396,10 +415,22 @@ apollo_beta = c(
   asc_bike = 0, 
   asc_pt = 0, 
   asc_walk = 0,
+#  asc_shift_car_female = 0,
+#  asc_shift_bike_female = 0,
+#  asc_shift_pt_female = 0,
+#  asc_shift_walk_female = 0,
   b_tt_car = 0, 
   b_tt_bike = 0, 
   b_tt_pt = 0, 
-  b_tt_walk = 0
+  b_tt_walk = 0,
+#  b_distance_car = 0, 
+# b_distance_bike = 0, 
+#  b_distance_pt = 0, 
+#  b_distance_walk = 0,
+  b_freq_pt = 0,
+  b_trans_nr_pt = 0,
+  b_cost = 0, 
+  b_cost_shift_lowincome = 0
 )
 
 #fix reference variables - not entirely sure what this is about? 
@@ -416,13 +447,29 @@ apollo_probabilities <- function(apollo_beta, apollo_inputs, functionality = "es
   #create list of probabilities
   P = list()
   
+  #create sociodemographic shifts
+  
+#  asc_car_value = asc_car + asc_shift_car_female * female
+#  asc_bike_value = asc_bike + asc_shift_bike_female * female
+#  asc_pt_value = asc_pt + asc_shift_pt_female * female
+#  asc_walk_value = asc_walk + asc_shift_walk_female * female
+  
+  b_cost_value = b_cost + b_cost_shift_lowincome * lowincome
+  
+  
   #list of utilities
   V = list()
   
-  V[["car"]] = asc_car + b_tt_car * tt_car
-  V[["bike"]] = asc_bike + b_tt_bike * tt_bike
-  V[["pt"]] = asc_pt + b_tt_pt*tt_pt
-  V[["walk"]] = asc_walk + b_tt_walk*tt_walk
+  #using distance instead of travel time
+#  V[["car"]] = asc_car + b_distance_car * distance_car + b_cost*cost_car
+ # V[["bike"]] = asc_bike  + b_distance_bike * distance_bike
+#  V[["pt"]] = asc_pt +  b_distance_pt * distance_pt +b_cost*cost_pt
+#  V[["walk"]] = asc_walk + b_distance_walk * distance_walk 
+  
+  V[["car"]] = asc_car + b_tt_car * tt_car  + b_cost_value*cost_car
+  V[["bike"]] = asc_bike + b_tt_bike * tt_bike 
+  V[["pt"]] = asc_pt + b_tt_pt*tt_pt + b_cost_value*cost_pt + b_freq_pt * freq_pt + b_trans_nr_pt*trans_nr_pt
+  V[["walk"]] = asc_walk + b_tt_walk*tt_walk 
   
   
   mnl_settings = list(
@@ -457,6 +504,12 @@ model = apollo_estimate(apollo_beta,
                         apollo_inputs)
 
 apollo_modelOutput(model)
+
+#calculating value of travel time
+
+deltaMethod_settings=list(expression=c(VTT_car_min="b_tt_car/b_cost",
+                                       VTT_pt_min = "b_tt_pt/b_cost"))
+apollo_deltaMethod(model, deltaMethod_settings)
 
 
 
