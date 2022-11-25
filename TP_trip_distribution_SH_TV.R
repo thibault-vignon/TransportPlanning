@@ -98,13 +98,125 @@ trips_aggregated <- trips_aggregated %>% filter(
 
 
 
-# create and look at the matrix of trips (does not store anything!)
-trips_aggregated %>%
+# create and look at the matrix of trips 
+od <- trips_aggregated %>%
   select(participant_id, start_bzname, end_bzname) %>% #reduce the size of the dataframe by only taking what you need
   group_by(start_bzname, end_bzname) %>% # group/split data frame into little ones, iterate through those
   count() %>% ungroup() %>% # for each little group, count trips
   pivot_wider(id_cols = start_bzname, names_from = end_bzname, values_from = n) %>% # "open" the two column dataframe into a matrix
   mutate(across(.cols = -start_bzname, .fns = ~ replace_na(., 0))) # replace "NA" with "0"
+
+
+
+
+# Heatmaps on observed data
+od = data.frame(subset(od, select = -c(start_bzname)))
+
+rownames(od) <- colnames(od)
+
+trip_dist <- data.frame(od) %>%
+  rownames_to_column() %>% as_tibble() %>%
+  rename(Origin = rowname) %>%
+  pivot_longer(cols = -Origin, names_to = "Destination", values_to = "nr_trips")
+
+
+# ggplot2 combo
+#https://stackoverflow.com/questions/24265652/label-minimum-and-maximum-of-scale-fill-gradient-legend-with-text-ggplot2
+#https://stackoverflow.com/questions/67010741/single-option-in-scale-fill-stepsn-changes-color-rendering-in-legend
+trip_dist %>%
+  mutate(nr_trips = floor(nr_trips)) %>%
+  ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
+  geom_tile() +
+  scale_x_discrete(position = "top") +
+  scale_fill_stepsn(breaks = c(0,50,100,250,500,1000,2500,5000),
+                    colours = rev(heat.colors(7, alpha = 0.8)),
+                    values = scales::rescale(c(0,50,100,250,500,1000,2500,5000)),
+                    show.limits = T) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
+  labs(fill = "# Trips")
+
+
+trip_dist<-t(apply(od,1, function(x) x/sum(x)))
+
+trip_dist <- data.frame(trip_dist) %>%
+  rownames_to_column() %>% as_tibble() %>%
+  rename(Origin = rowname) %>%
+  pivot_longer(cols = -Origin, names_to = "Destination", values_to = "nr_trips")
+
+trip_dist %>%
+  ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
+  geom_tile() +
+  scale_x_discrete(position = "top") +
+  scale_fill_stepsn(colours = rev(heat.colors(7, alpha = 0.8)),
+                    show.limits = T) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
+  labs(fill = "Fraction of trips from origin")
+
+
+
+
+
+# create and look at the matrix of trips 
+od1 <- trips_aggregated %>%
+  select(participant_id, trip_started_in, trip_ended_in) %>% #reduce the size of the dataframe by only taking what you need
+  group_by(trip_started_in, trip_ended_in) %>% # group/split data frame into little ones, iterate through those
+  count() %>% ungroup() %>% # for each little group, count trips
+  pivot_wider(id_cols = trip_started_in, names_from = trip_ended_in, values_from = n) %>% # "open" the two column dataframe into a matrix
+  mutate(across(.cols = -trip_started_in, .fns = ~ replace_na(., 0))) # replace "NA" with "0"
+
+
+
+
+# Same heatmaps but with all trip instead of main mode
+od1 = data.frame(subset(od1, select = -c(trip_started_in)))
+
+rownames(od1) <- colnames(od1)
+
+trip_dist <- data.frame(od1) %>%
+  rownames_to_column() %>% as_tibble() %>%
+  rename(Origin = rowname) %>%
+  pivot_longer(cols = -Origin, names_to = "Destination", values_to = "nr_trips")
+
+
+# ggplot2 combo
+#https://stackoverflow.com/questions/24265652/label-minimum-and-maximum-of-scale-fill-gradient-legend-with-text-ggplot2
+#https://stackoverflow.com/questions/67010741/single-option-in-scale-fill-stepsn-changes-color-rendering-in-legend
+trip_dist %>%
+  mutate(nr_trips = floor(nr_trips)) %>%
+  ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
+  geom_tile() +
+  scale_x_discrete(position = "top") +
+  scale_fill_stepsn(breaks = c(0,50,100,250,500,1000,2500,5000),
+                    colours = rev(heat.colors(7, alpha = 0.8)),
+                    values = scales::rescale(c(0,50,100,250,500,1000,2500,5000)),
+                    show.limits = T) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
+  labs(fill = "# Trips")
+
+
+trip_dist<-t(apply(od1,1, function(x) x/sum(x)))
+
+trip_dist <- data.frame(trip_dist) %>%
+  rownames_to_column() %>% as_tibble() %>%
+  rename(Origin = rowname) %>%
+  pivot_longer(cols = -Origin, names_to = "Destination", values_to = "nr_trips")
+
+trip_dist %>%
+  ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
+  geom_tile() +
+  scale_x_discrete(position = "top") +
+  scale_fill_stepsn(colours = rev(heat.colors(7, alpha = 0.8)),
+                    show.limits = T) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
+  labs(fill = "Fraction of trips from origin")
+
+
+
+
 
 # create a little zones dataset
 zones <- trips_aggregated %>%
@@ -135,7 +247,6 @@ attraction <- trips_aggregated %>%
 # check that we don't have trips without an end or without a begining
 sum(production$production) == sum(attraction$attraction)
 
-skim(trips_aggregated$sum_duration)
 
 #4.2 Step 3
 #Calculating Generalized Costs between the zones in terms of travel time
@@ -174,7 +285,7 @@ ipf <- function(zones_df,outgoing,incoming,gcosts_df){
   
   # matrix with flows
   trip_dist = gcosts_df
-  colnames(trip_dist) <- seq(1,nr_z)
+  #colnames(trip_dist) <- seq(1,nr_z)
   
   # Compute the flows, nested for loop
   while ((any(abs(1 - alpha_destination) > eps)) | (any(abs(1 - alpha_origin) > eps))) {
@@ -209,15 +320,14 @@ distribution$nr_it
 distribution$alpha_origin
 distribution$alpha_destination
 
-# heatmap function
-heatmap(as.matrix(distribution$trip_dist))
+rownames(distribution$trip_dist) <- colnames(distribution$trip_dist)
+
+
 
 trip_dist <- data.frame(distribution$trip_dist[1:12,1:12]) %>%
   rownames_to_column() %>% as_tibble() %>%
   rename(Origin = rowname) %>%
   pivot_longer(cols = -Origin, names_to = "Destination", values_to = "nr_trips")
-
-skim(trip_dist$nr_trips)
 
 
 # ggplot2 combo
@@ -232,11 +342,26 @@ trip_dist %>%
                     colours = rev(heat.colors(7, alpha = 0.8)),
                     values = scales::rescale(c(0,50,100,250,500,1000,2500,5000)),
                     show.limits = T) +
-  theme_bwXCFBDSFBF
+  theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
   labs(fill = "# Trips")
 
-#Now, the heatmaps above were created using the output of the Furness method (which is a model, just not a statistical one :-) )
-#Next, on your own, also make one using the actual counts - they are probably different! 
-# Can you come up with a different way of calculating generalized costs that makes your trip distribution more closely reflect the actaul distribution?
+
+
+trip_dist<-t(apply(distribution$trip_dist,1, function(x) x/sum(x)))
+
+trip_dist <- data.frame(trip_dist) %>%
+  rownames_to_column() %>% as_tibble() %>%
+  rename(Origin = rowname) %>%
+  pivot_longer(cols = -Origin, names_to = "Destination", values_to = "nr_trips")
+
+trip_dist %>%
+  ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
+  geom_tile() +
+  scale_x_discrete(position = "top") +
+  scale_fill_stepsn(colours = rev(heat.colors(7, alpha = 0.8)),
+                    show.limits = T) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
+  labs(fill = "Fraction of trips from origin")
 
