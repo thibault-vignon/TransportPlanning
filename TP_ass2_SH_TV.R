@@ -16,6 +16,14 @@ library(scales)
 library(car)
 library(stargazer)
 
+#custom theme for ggplot
+custom_theme <- theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5, margin = margin(10, 10, 5, 10)), 
+        plot.subtitle = element_text(hjust = 0.5, size = 11),
+        axis.text = element_text(size = 10), 
+        axis.title = element_text(size = 12, 
+                                  margin = margin(10, 10, 10, 10)))
+
 # 1 Import data -----------------------------------------------------------
 
 # use load and adjust the path to where you have saved the data file
@@ -144,8 +152,14 @@ weekly_trips_participant_clean <- weekly_trips_per_participant %>%
 
 #left with 453 people - hopefully enough for analysis
 
-ggplot(weekly_trips_participant_clean, aes(x = log(n_trips_imputed))) + 
-  geom_histogram()
+ggplot(weekly_trips_participant_clean, 
+       aes(x = log(n_trips_imputed))) + 
+  geom_histogram() +
+  labs(title = "Distribution of log(weekly trips) in Canton Zurich", 
+       x = "log(n weekly trips)",
+       caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'") +
+  custom_theme
+
 #data looks relatively normal, not too bad
 
 #join imputed number of weekly trips to participant data
