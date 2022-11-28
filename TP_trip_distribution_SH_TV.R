@@ -9,7 +9,7 @@ require("tidyverse") # basek of great packages: e.g. dplyr which makes data wran
 require("sf") # needed for plotting of spatial polygons and calculations with it
 require("AER") # package for vif test
 require("stargazer") # package to turn your regression results into Latex-coded table
-
+require("xtable")
 
 # 1 Import data -----------------------------------------------------------
 
@@ -114,6 +114,8 @@ od = data.frame(subset(od, select = -c(start_bzname)))
 
 rownames(od) <- colnames(od)
 
+print(xtable(od, type = "latex"), file = "od.tex")
+
 trip_dist <- data.frame(od) %>%
   rownames_to_column() %>% as_tibble() %>%
   rename(Origin = rowname) %>%
@@ -148,7 +150,8 @@ trip_dist %>%
   ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
   geom_tile() +
   scale_x_discrete(position = "top") +
-  scale_fill_stepsn(colours = rev(heat.colors(7, alpha = 0.8)),
+  scale_fill_stepsn(breaks = c(0,0.1,0.2,0.3,0.4,0.5),
+                    colours = rev(heat.colors(7, alpha = 0.8)),
                     show.limits = T) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
@@ -173,6 +176,8 @@ od1 <- trips_aggregated %>%
 od1 = data.frame(subset(od1, select = -c(trip_started_in)))
 
 rownames(od1) <- colnames(od1)
+
+print(xtable(od, type = "latex"), file = "od1.tex")
 
 trip_dist <- data.frame(od1) %>%
   rownames_to_column() %>% as_tibble() %>%
@@ -208,7 +213,8 @@ trip_dist %>%
   ggplot(aes(x = Destination, y = Origin, fill = nr_trips)) +
   geom_tile() +
   scale_x_discrete(position = "top") +
-  scale_fill_stepsn(colours = rev(heat.colors(7, alpha = 0.8)),
+  scale_fill_stepsn(breaks = c(0,0.1,0.2,0.3,0.4,0.5),
+                    colours = rev(heat.colors(7, alpha = 0.8)),
                     show.limits = T) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 0.1)) +
@@ -322,7 +328,9 @@ distribution$alpha_destination
 
 rownames(distribution$trip_dist) <- colnames(distribution$trip_dist)
 
+distribution$trip_dist <- distribution$trip_dist %>% mutate_all(funs(round(., 0)))
 
+print(xtable(distribution$trip_dist, type = "latex"), file = "odmodel.tex")
 
 trip_dist <- data.frame(distribution$trip_dist[1:12,1:12]) %>%
   rownames_to_column() %>% as_tibble() %>%
