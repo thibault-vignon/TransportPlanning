@@ -15,6 +15,7 @@ require("sf") # needed for plotting of spatial polygons and calculations with it
 library(scales)
 library(car)
 library(stargazer)
+require("xtable")
 
 #custom theme for ggplot
 custom_theme <- theme_bw() + 
@@ -195,7 +196,12 @@ ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(sex))) +
 
 #some income brackets look different
 ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(income))) +
-  geom_boxplot()
+  geom_boxplot() +
+  labs(title = "Number of weekly trips by income", 
+       x = "Number weekly trips", 
+       y = "Income category", 
+       caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'") +
+  custom_theme
 
 #some education looks different
 ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(education))) +
@@ -207,11 +213,25 @@ ggplot(participants_trips, aes(x = weekly_trips_imputed, y = age)) +
 
 #some household brackets look slightly different
 ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(household_size))) +
-  geom_boxplot()
+  geom_boxplot() +
+  labs(title = "Number of weekly trips by household size", 
+       x = "Number weekly trips", 
+       y = "Houshold size", 
+       caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'") +
+  custom_theme
+
 
 #public transport pass looks like it plays a role
-ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(has_pt_pass))) +
-  geom_boxplot()
+ggplot(participants_trips %>%
+         filter(!is.na(has_pt_pass)),
+       aes(x = weekly_trips_imputed, y = factor(has_pt_pass))) +
+  geom_boxplot() + 
+  labs(title = "Number of weekly trips for those with vs without a public transit travel pass", 
+       x = "Number weekly trips", 
+       y = "Has public travel travel pass (regional, GA, or half tax)", 
+       caption = "Source: Fall 2019 MOBIS from Transport Planning Methods 'HS22 data_assignment.RData'") +
+  custom_theme
+
 
 #car access looks like it plays a role - but turns out almost everyone in the survey owns a car.. .maybe sample size too small
 ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(own_car))) +
@@ -227,11 +247,12 @@ ggplot(participants_trips, aes(x = weekly_trips_imputed, y = factor(work_type)))
 ### Step 3: Construct dummy variables - this will happen within lm calls with factor() function
 
 participants_trips <- participants_trips %>%
+  filter(!is.na(income)) %>%
   mutate(income = factor(income), 
          education = factor(education), 
-         sex = factor(age), 
+         sex = factor(sex), 
          household_size = factor(household_size), 
-         work_type = factor(work_type))
+         work_type = factor(work_type)) 
 
 #to get larger sample sizes, group some of the housoehold size bins and incomes
 participants_trips <- participants_trips %>% mutate(
@@ -279,8 +300,8 @@ summary(lm(data = participants_trips,
 model <- lm(data = participants_trips, 
         log(weekly_trips_imputed) ~ 
           income +
-          age+
-     #     household_size+
+     #     age+
+          household_size+
           has_pt_pass)
 
 summary(model)
@@ -298,6 +319,7 @@ summary(model)
 ### Step 5: Checking linear regression assumptions
 
 #Linearity - line is close to horizontal so this assumptions holds
+
 plot(model, which = 1)
 
 #normality - looks pretty good
@@ -517,13 +539,189 @@ model = apollo_estimate(apollo_beta,
                         apollo_probabilities,
                         apollo_inputs)
 
-apollo_modelOutput(model)
+x <- apollo_modelOutput(model)
 
 #calculating value of travel time
 
 deltaMethod_settings=list(expression=c(VTT_car_min="b_tt_car/b_cost",
                                        VTT_pt_min = "b_tt_pt/b_cost"))
 apollo_deltaMethod(model, deltaMethod_settings)
+
+
+
+############ Want to apply mode choice model to trip distribution 
+#### to predict modal split between zones
+
+# will use trip_dist calculated in Trip Production file
+
+
+
+
+### need to build a simpler model with sociodemographic characteristics. We also leave out the frequency of public transport since this was not significant
+apollo_initialise()
+
+database = trips_total
+
+
+#set up core controls
+apollo_control = list(
+  modelName ="mode_choice",
+  indivID ="participant_id",
+  outputDirectory = "output",
+  #weights = "weight_double",
+  nCores = 1
+)
+
+#parameters that we are interested in the effect of
+apollo_beta = c(
+  asc_car = 0, 
+  asc_bike = 0, 
+  asc_pt = 0, 
+  asc_walk = 0,
+  b_tt_car = 0, 
+  b_tt_bike = 0, 
+  b_tt_pt = 0, 
+  b_tt_walk = 0,
+  b_trans_nr_pt = 0,
+  b_cost = 0
+
+)
+
+#fix reference variables - not entirely sure what this is about? 
+apollo_fixed = c("asc_car")
+
+apollo_inputs = apollo_validateInputs()
+
+apollo_probabilities <- function(apollo_beta, apollo_inputs, functionality = "estimate"){
+  
+  #attach inputs and detach after function exit
+  apollo_attach(apollo_beta, apollo_inputs)
+  on.exit(apollo_detach(apollo_beta, apollo_inputs))
+  
+  #create list of probabilities
+  P = list()
+
+  
+  
+  #list of utilities
+  V = list()
+  
+  V[["car"]] = asc_car + b_tt_car * tt_car  + b_cost*cost_car
+  V[["bike"]] = asc_bike + b_tt_bike * tt_bike 
+  V[["pt"]] = asc_pt + b_tt_pt*tt_pt + b_cost*cost_pt  + b_trans_nr_pt*trans_nr_pt
+  V[["walk"]] = asc_walk + b_tt_walk*tt_walk 
+  
+  
+  mnl_settings = list(
+    
+    #alternatives - assign a number that will be used for the alternative in the model
+    alternatives = c(car=1, pt=2, bike=3, walk=4),
+    #setting vector from which to pull the availability of alternatives
+    avail = list(car=avail_car, pt = avail_pt, bike = avail_bike, walk = avail_walk),
+    #vector that contains actual chosen option - should be from the numbers above
+    choiceVar = choice,
+    utilities = V)
+  
+  #compute probabilities using MNL model
+  P[["model"]] = apollo_mnl(mnl_settings, functionality)
+  
+  #Take product across observation for same individual
+  P = apollo_panelProd(P, apollo_inputs, functionality)
+  
+  #Prepare and return outputs of function
+  P = apollo_prepareProb(P, apollo_inputs, functionality)
+  return(P)
+  
+  
+}
+
+model = apollo_estimate(apollo_beta,
+                        apollo_fixed,
+                        apollo_probabilities,
+                        apollo_inputs)
+
+ apollo_modelOutput(model)
+
+
+
+#then we will use the model to get the predicted modal splits between each pair of zones
+ 
+zones <- unique(trips_total$start_bzname.x) 
+
+#create database that will end up having the probabilities of each mode between zones
+probs <- data.frame(start_zone = 0, 
+                    end_zone = rep(zones, length(zones)),
+                    perc_car = 0, 
+                    perc_pt = 0, 
+                    perc_walk = 0, 
+                    perc_bike = 0)
+
+
+#loop through each combination of zones, and use the model to predict the probabilities of each mode for trips made between those two districts 
+row = 1
+for (i in 1:length(zones)){
+  for (j in 1:length(zones)){
+    database <- trips_total %>% filter(start_bzname.x == zones[i] & end_bzname.x == zones[j])
+    apollo_inputs = apollo_validateInputs()
+    forecast = apollo_prediction(model,
+                                 apollo_probabilities,
+                                 apollo_inputs)
+    probs$start_zone[row] = zones[i]
+    probs$end_zone[row] = zones[j]
+    probs$perc_car[row] = mean(forecast$car)
+    probs$perc_pt[row] = mean(forecast$pt)
+    probs$perc_bike[row] = mean(forecast$bike)
+    probs$perc_walk[row] = mean(forecast$walk)
+    row = row + 1
+  }
+} 
+  
+
+
+#join modal probabilities to trip_dist data (from Trip Production.R) 
+
+#note that some origin/destination pairs did not exist in the alternatives data, so we did not get estimations for these
+#a more detailed analysis could impute values based on averages from the trips data, in order to compute trip distributions for these pairs
+
+modal_split <- probs %>% left_join(trip_dist, 
+                            by = c("start_zone" = "Origin", "end_zone" = "Destination")) %>%
+  mutate(n_car = round(perc_car *nr_trips), 
+         n_pt = round(perc_pt * nr_trips), 
+         n_bike = round(perc_bike * nr_trips),
+         n_walk = round(perc_walk * nr_trips))
+
+modal_split_output <- modal_split %>%
+  filter(!is.na(n_car)) %>%
+  select(start_zone, end_zone, n_car, n_pt, n_walk, n_bike) %>%
+  filter(start_zone == "Zürich") %>%
+  arrange(end_zone)
+
+xtable(modal_split_output, type = "latex", digits = 0)
+
+
+
+
+test <- modechoicetrips %>% 
+  group_by(start_bzname, end_bzname) %>% 
+  summarise(n_trips = n(), 
+            n_car_avail = sum(avail_car),
+            tt_car = mean(tt_car, na.rm = TRUE), 
+            cost_car = mean(cost_car, na.rm = TRUE),
+            n_pt_avail = sum(avail_pt), 
+            tt_pt = mean(tt_pt, na.rm = TRUE), 
+            cost_pt = mean(cost_pt, na.rm = TRUE), 
+            trans_nr_pt = mean(trans_nr_pt, na.rm = TRUE),
+            n_bike_avail = sum(avail_bike), 
+            tt_bike = mean(tt_bike, na.rm = TRUE), 
+            n_walk_avail = sum(avail_walk), 
+            tt_walk = mean(tt_walk, na.rm = TRUE))
+
+
+
+
+
+
+
 
 
 
