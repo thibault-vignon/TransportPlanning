@@ -177,7 +177,7 @@ od1 = data.frame(subset(od1, select = -c(trip_started_in)))
 
 rownames(od1) <- colnames(od1)
 
-print(xtable(od, type = "latex"), file = "od1.tex")
+print(xtable(od1, type = "latex"), file = "od1.tex")
 
 trip_dist <- data.frame(od1) %>%
   rownames_to_column() %>% as_tibble() %>%
