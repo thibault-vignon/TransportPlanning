@@ -7,7 +7,7 @@
 
 # Set up ------------------------------------------------------------------
 
-
+rm(list = ls())
 
 require("lubridate") # great for dealing with dates if needed
 require("tidyverse") # basek of great packages: e.g. dplyr which makes data wrangling more readable and easier
@@ -547,6 +547,12 @@ deltaMethod_settings=list(expression=c(VTT_car_min="b_tt_car/b_cost",
                                        VTT_pt_min = "b_tt_pt/b_cost"))
 apollo_deltaMethod(model, deltaMethod_settings)
 
+forecast = apollo_prediction(model,
+                             apollo_probabilities,
+                             apollo_inputs)
+
+
+forecast
 
 
 ############ Want to apply mode choice model to trip distribution 
@@ -566,7 +572,7 @@ database = trips_total
 #set up core controls
 apollo_control = list(
   modelName ="mode_choice",
-  indivID ="participant_id",
+  indivID = "participant_id",
   outputDirectory = "output",
   #weights = "weight_double",
   nCores = 1
@@ -721,7 +727,44 @@ test <- modechoicetrips %>%
 
 
 
+########## Demand Calculations for Cost Benefit Analysis  ###############
 
+# now we are interested in how demand changes if we apply the policy changes that we want to evaluate as a part of a CBA analysis
+
+
+
+
+
+modechoicetrips %>% 
+  filter((start_bzname == "Zürich" & end_bzname == "Bülach") | (start_bzname == "Bülach" & end_bzname == "Zürich")) %>%
+  summarise(avg_dist_pt = mean(distance_pt, na.rm = TRUE), 
+            avg_dist_car = mean(distance_car, na.rm = TRUE), 
+            avg_dist_walk = mean(distance_walk, na.rm = TRUE), 
+            avg_dist_bike = mean(distance_bike, na.rm = TRUE), 
+            avg_tt_car = mean(tt_car, na.rm = TRUE), 
+            avg_tt_pt = mean(tt_pt, na.rm = TRUE), 
+            avg_tt_walk = mean(tt_walk, na.rm = TRUE), 
+            avg_tt_bike = mean(tt_bike, na.rm = TRUE))
+
+
+modechoicetrips %>% 
+  filter((start_bzname == "Zürich" & end_bzname != "Zürich") | (start_bzname != "Zïrich" & end_bzname == "Zürich")) %>%
+  summarise(avg_dist_pt = mean(distance_pt, na.rm = TRUE), 
+            avg_dist_car = mean(distance_car, na.rm = TRUE), 
+            avg_dist_walk = mean(distance_walk, na.rm = TRUE), 
+            avg_dist_bike = mean(distance_bike, na.rm = TRUE), 
+            avg_cost_car = mean(cost_car, na.rm = TRUE),
+            avg_tt_car = mean(tt_car, na.rm = TRUE), 
+            avg_tt_pt = mean(tt_pt, na.rm = TRUE), 
+            avg_tt_walk = mean(tt_walk, na.rm = TRUE), 
+            avg_tt_bike = mean(tt_bike, na.rm = TRUE))
+
+
+
+trips_aggregated %>% 
+  filter((start_bzname == "Zürich" & end_bzname != "Zürich") | (start_bzname != "Zïrich" & end_bzname == "Zürich")) %>%
+  group_by(mode_agg) %>%
+  summarise(n = n())
 
 
 
